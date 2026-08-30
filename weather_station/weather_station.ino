@@ -8,11 +8,16 @@ struct LogData {
   float pressure;
   float humidity;
   const char *light;
+  int water;
 };
 
 Adafruit_BME280 bme;
 
 const int LDR_PIN = 34;
+
+const int WATER_SIGNAL_PIN = 35;
+const int WATER_POWER_PIN = 25;
+const int WATER_SETTLE_MS = 10;
 
 const char *getLevelName(LogLevel level) {
   switch (level) {
@@ -36,10 +41,10 @@ void logEvent(LogLevel level, const char *source, const char *message) {
 void logData(LogLevel level, const LogData &data) {
   const char *levelName = getLevelName(level);
 
-  Serial.printf(
-      "[%lu] [%s] temperature=%.2f pressure=%.2f humidity=%.2f light=%s\n",
-      millis(), levelName, data.temperature, data.pressure, data.humidity,
-      data.light);
+  Serial.printf("[%lu] [%s] temperature=%.2f pressure=%.2f humidity=%.2f "
+                "light=%s water=%d\n",
+                millis(), levelName, data.temperature, data.pressure,
+                data.humidity, data.light, data.water);
 }
 
 void initBME280() {
@@ -50,6 +55,27 @@ void initBME280() {
   }
 
   logEvent(INFO, "BME280", "Found");
+}
+
+void initWaterSensor() {
+  pinMode(WATER_POWER_PIN, OUTPUT);
+  digitalWrite(WATER_POWER_PIN, LOW);
+
+  analogReadResolution(12);
+  analogSetPinAttenuation(WATER_SIGNAL_PIN, ADC_11db);
+
+  logEvent(INFO, "WATER", "Initialized");
+}
+
+int readWaterLevel() {
+  digitalWrite(WATER_POWER_PIN, HIGH);
+  delay(WATER_SETTLE_MS);
+
+  int waterLevel = analogRead(WATER_SIGNAL_PIN);
+
+  digitalWrite(WATER_POWER_PIN, LOW);
+
+  return waterLevel;
 }
 
 const char *readLight() {
@@ -76,6 +102,7 @@ void setup() {
 
   // initialize sensors
   initBME280();
+  initWaterSensor();
 }
 
 void loop() {
@@ -84,8 +111,9 @@ void loop() {
   float pressure = readPressure();
   float humidity = readHumidity();
   const char *light = readLight();
+  int water = readWaterLevel();
 
-  logData(INFO, {temperature, pressure, humidity, light});
+  logData(INFO, {temperature, pressure, humidity, light, water});
 
   delay(10 * 1000);
 }
